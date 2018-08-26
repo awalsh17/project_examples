@@ -1,0 +1,151 @@
+---
+title: "DataCamp Zillow Project"
+subtitle: "A Tale of Two Cities"
+author: "Alice Walsh"
+date: "8/11/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1 - The dataset
+I was interested in areas that have had the largest increase in home prices over the last few years... conversely, which zip codes have had the largest drop in home prices?
+
+Zillow makes home prices and other data available on their website: https://www.zillow.com/research/data/
+
+You can directly load a comma-separated file (csv) from the Zillow website with median listing prices for homes by zip code.
+
+1. Load the `tidyverse` package
+1. Using `read_csv` load the dataset and assign to a variable, `zillow`
+
+
+```{r load_packages}
+library(tidyverse)
+```
+
+```{r load_widedata}
+# zillow_source <- "http://files.zillowstatic.com/research/public/Zip/Zip_MedianListingPrice_AllHomes.csv"
+# zillow_source <- "http://files.zillowstatic.com/research/public/Zip/Zip_MedianListingPricePerSqft_AllHomes.csv"
+
+zillow_source <- "http://files.zillowstatic.com/research/public/City/City_MedianListingPricePerSqft_AllHomes.csv"
+# Use read_csv from readr package (part of tidyverse)
+zillow <- read_csv(zillow_source)
+```
+
+# 2 - Inspect the data
+The first thing you need to do when examining a new dataset is look into how the data is organized and how big it is.
+
+1. Use `dim` to find out how many rows and columns are in `zillow`.
+1. Then use `names` to look at the names of just the first 20 columns.
+
+```{r check_size}
+### add here ###
+dim(zillow)
+names(zillow)[1:20]
+```
+
+The data is 10165 rows and 108 columns. 
+
+You will notice that some of the variable/column names are not valid variable names in R (e.g. "2010-05"). Generally, you cannot have a variable begin with a number or contain a dash ("-").
+
+`readr` `read_csv()` function maintains the column names of the imported csv, but it is easier to work with in R, if we convert to valid names.
+
+See `make.names` documentation (https://stat.ethz.ch/R-manual/R-devel/library/base/html/make.names.html)
+
+```{r rename_zillow}
+# Convert to names
+zillow <- rename_all(zillow, make.names)
+names(zillow)[1:20]
+
+```
+
+# 3 - Calculate the regions with the largest changes
+
+The first month available in the dataset is January 2010 (`X2010.01`) and the most recent is June 2018 (`X2018.06`). However, several regions are missing data for months before June 2017. For simplicity, we will only consider regions with data from June 2010 (`X2010.06`) to June 2018 (`X2018.06`).
+
+Of course, there are more comprehensive ways to evaluate the change - just taking the differences between two months may be misleading.
+
+Let's create a new variable in the data to represent the percent change in listing price. Then we can filter the dataset to the 2 regions with the largest increases and decreases, respectively. The `top_n()` function from `dplyr` will be helpful here.
+
+```{r create_change}
+zillow$change <- 100 * ((zillow$X2018.06 - zillow$X2010.06)/zillow$X2010.06)
+
+# Filter to 2 top increasing and 2 top decreasing
+zillow_sel <- rbind(top_n(zillow, n = 2, wt = change),
+                  top_n(zillow, n = 2, wt = -change))  
+# Print the City names:
+zillow_sel$City
+```
+
+# 4 - Data is wide
+
+This data is in wide format. There are columns for every month with home prices (starting with "X2010.01" and ending with "X2018.06"). 
+There is only one row for each zip-code (`RegionName`) in the data frame. You can check this by examining if the number of unique values for `RegionName` are the same as the number of rows in the data frame
+
+```{r}
+length(unique(zillow$RegionName)) == nrow(zillow)
+```
+
+Some tasks are best performed on data that is in wide format. For example, you can plot a heatmap of the home prices. 
+
+Modify the code to make a heatmap of the listing prices in the filtered data. There are a lot of packages to make pretty heatmaps, but this is just a quick look using the `heatmap` function from the `stats` package.
+
+
+```{r heatmap}
+# Create a numeric matrix with just the columns that contain pricing information
+zillow_matrix <- as.matrix(select_at(zillow_sel, vars(starts_with("X"))))
+heatmap(zillow_matrix, 
+        col = rainbow(256, start = 0, end = 4/6),
+        labRow = paste0(zillow_sel$RegionName,",", zillow_sel$City),
+        Colv = NA, Rowv = NA)
+```
+
+# 5 - Convert to long format
+However, there are many times when data is easier to work with in long format. For example, it can be difficult to work with data where important information is captured in the variable names themselves (the months in our home pricing data). Also, excellent visualization packages like `ggplot2` use data in long format.
+
+In long format, our data will have only one column with home prices. There will be multiple rows for a given `RegionName`. There will be two new columns in the long data frame: one that specifies the year-month (was previously captured in the column names), and another with the actual prices.
+
+We will use `gather()` from `tidyr` package to reshape the data. Check out the documentation for `gather()`.
+
+```{r make_long}
+zillow_long <- gather(zillow_sel, key = "year.month", value = "price", starts_with("X"))
+# Look at the first several rows
+head(zillow_long)
+# Check that the number of rows 
+# is no longer the same as the number of RegionNames
+length(unique(zillow_long$RegionName)) == nrow(zillow_long)
+```
+
+# 6 - Make month and year columns
+The data is still not exactly what we want. The key column `year.month` we created when we converted the data to long format actually contains two pieves of information (year and month) and therefore, these should be two columns. Imagine you wanted to look at the average listing price by year... it will be much easier when year is a separate variable.
+
+
+```{r}
+zillow_long <- zillow_long %>% 
+  separate(year.month, into = c("year", "month"), sep = "\\.") %>% 
+  mutate(year = sub("X", "", year))
+```
+
+# 7 - Plot 
+
+Let's plot the June home prices over time for the selected zip codes with the largest changes over time.
+```{r plot_zillow}
+june_zillow <- filter(zillow_long, month == "06")
+
+ggplot(june_zillow, aes(x = year, y = price, color = RegionName)) +
+  geom_line(aes(group = RegionName)) +
+  geom_point()
+```
+
+
+```{r plot_zillow_avg}
+avg_zillow <- zillow_long %>% 
+  group_by(RegionName, City, year) %>% 
+  summarise(price = mean(price))
+
+ggplot(avg_zillow, aes(x = year, y = price, color = City)) +
+  geom_line(aes(group = RegionName)) +
+  geom_point()
+```
