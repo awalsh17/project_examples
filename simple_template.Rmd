@@ -1,0 +1,58 @@
+---
+title: "Title"
+author: "Pathos"
+date: '`r format.Date(Sys.time(), "%B %d %Y %H:%M", usetz = TRUE)`'
+output: 
+  html_document:
+    code_folding: hide
+    theme: cerulean
+    toc: yes
+    toc_float: yes
+    toc_depth: 4
+---
+
+<style type="text/css">
+h1,h2,h3,h4,h5,h6{ font-family: Avenir; }
+body{ font-family: Avenir; }
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      results = "asis", 
+                      fig.align = "center",
+                      out.width = "80%", 
+                      out.height = "80%")
+# set seed
+set.seed(22)
+# below is sometimes desired if you want the working dir to make project dir
+# knitr::opts_knit$set(root.dir = here::here())
+```
+
+```{r echo = FALSE, warning=FALSE, message = FALSE}
+# load packages - for example....
+library(knitr)
+library(ggplot2)
+library(dplyr)
+library(tempusr)
+# add information here for ggplot2 theme
+theme_set(theme_minimal(base_family = "Avenir Next"))
+```
+
+**Objective:** Add
+
+**Results:** Add
+
+**Conclusions:** Add
+
+**Future Directions:** Add
+
+## Add sections here
+
+
+### Environment {.appendix}
+
+```{r environment, results='asis', eval = TRUE}
+pander::pander(sessionInfo())
+```
+
+**End of report**
